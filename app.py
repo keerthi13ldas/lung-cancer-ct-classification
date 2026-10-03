@@ -4,11 +4,14 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import tensorflow as tf
+from huggingface_hub import hf_hub_download
 from PIL import Image
 from tensorflow.keras.applications.resnet50 import preprocess_input
 
-MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "best_lung_cancer_resnet50_finetuned.keras")
+MODEL_FILE = "best_lung_cancer_resnet50_finetuned.keras"
+LOCAL_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                MODEL_FILE)
+HF_REPO_ID = "Keerthanldas/lung-cancer-resnet50"
 CLASS_NAMES = ["Benign", "Malignant", "Normal"]
 CLASS_COLORS = {"Benign": "#e0a030", "Malignant": "#d64545", "Normal": "#2e9e6b"}
 IMG_SIZE = (224, 224)
@@ -55,9 +58,18 @@ st.markdown(
 )
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner="Loading model...")
 def load_model():
-    return tf.keras.models.load_model(MODEL_PATH)
+    # Use the local file if it exists (running on your own PC)
+    if os.path.exists(LOCAL_MODEL_PATH):
+        return tf.keras.models.load_model(LOCAL_MODEL_PATH)
+    # Otherwise download it from the private Hugging Face model repo
+    path = hf_hub_download(
+        repo_id=HF_REPO_ID,
+        filename=MODEL_FILE,
+        token=st.secrets["HF_TOKEN"],
+    )
+    return tf.keras.models.load_model(path)
 
 
 # 1. Header
@@ -84,7 +96,6 @@ if uploaded is None:
     st.session_state.pop("file_key", None)
     st.info("Supported formats: JPG, JPEG and PNG.")
 else:
-    # Reset the result when a different image is uploaded
     file_key = f"{uploaded.name}-{uploaded.size}"
     if st.session_state.get("file_key") != file_key:
         st.session_state["file_key"] = file_key
